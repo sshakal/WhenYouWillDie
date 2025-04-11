@@ -17,3 +17,6 @@ C:\Users\poult\source\repos\WhenYouWillDie\obj\Debug\net9.0\refint\WhenYouWillDi
 C:\Users\poult\source\repos\WhenYouWillDie\obj\Debug\net9.0\WhenYouWillDie.pdb
 C:\Users\poult\source\repos\WhenYouWillDie\obj\Debug\net9.0\WhenYouWillDie.genruntimeconfig.cache
 C:\Users\poult\source\repos\WhenYouWillDie\obj\Debug\net9.0\ref\WhenYouWillDie.dll
+C:\Users\poult\source\repos\WhenYouWillDie\bin\Debug\net9.0\DotNetEnv.dll
+C:\Users\poult\source\repos\WhenYouWillDie\bin\Debug\net9.0\Sprache.dll
+C:\Users\poult\source\repos\WhenYouWillDie\bin\Debug\net9.0\.env

@@ -1,17 +1,25 @@
-﻿using Telegram.Bot;
+﻿using DotNetEnv;
+using System.Text.RegularExpressions;
+using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Exceptions;
-using dotenv.net;
 
-// Load environment variables from .env file
-DotEnv.Load();
+try
+{
+    Env.Load();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Ошибка загрузки .env: {ex.Message}");
+    return;
+}
 
-var botToken = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN");
+var botToken = Env.GetString("TELEGRAM_BOT_TOKEN");
 if (string.IsNullOrEmpty(botToken))
 {
-    Console.WriteLine("Error: TELEGRAM_BOT_TOKEN environment variable is not set");
+    Console.WriteLine("Error: TELEGRAM_BOT_TOKEN не найден в .env");
     return;
 }
 
@@ -19,31 +27,45 @@ var botClient = new TelegramBotClient(botToken);
 
 using var cts = new CancellationTokenSource();
 
-// StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
 var receiverOptions = new ReceiverOptions
 {
-    AllowedUpdates = Array.Empty<UpdateType>() // receive all update types
+    AllowedUpdates = []
 };
 
 async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
 {
-    // Only process Message updates
     if (update.Message is not { } message)
         return;
     
-    // Only process text messages
     if (message.Text is not { } messageText)
         return;
 
     var chatId = message.Chat.Id;
 
-    Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+    if(messageText == "/start")
+    {
+        Message startMessage = await botClient.SendMessage(
+            chatId: chatId,
+            text: $"Напиши свою дату рождения в формате \"10.11.2010\"",
+            cancellationToken: cancellationToken);
+    }
 
-    // Echo the message back to the chat
-    Message sentMessage = await botClient.SendTextMessageAsync(
-        chatId: chatId,
-        text: messageText,
-        cancellationToken: cancellationToken);
+    if (IsValidDate(messageText))
+    {
+        Message sentMessage = await botClient.SendMessage(
+            chatId: chatId,
+            text: $"Тебе осталось жить {FormatTimeSpan(CalculateRemainingTime(messageText).Value)}",
+            cancellationToken: cancellationToken);
+    }
+    else
+    {
+        Message sentMessage = await botClient.SendMessage(
+            chatId: chatId,
+            text: $"Неверно введен формат даты",
+            cancellationToken: cancellationToken);
+    }
+
+    Console.WriteLine($"Получено '{messageText}' сообщение в чате {chatId}.");
 }
 
 Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
@@ -66,10 +88,54 @@ botClient.StartReceiving(
     cts.Token
 );
 
-var me = await botClient.GetMeAsync();
+var me = await botClient.GetMe();
 
-Console.WriteLine($"Start listening for @{me.Username}");
 Console.ReadLine();
 
-// Send cancellation request to stop bot
 cts.Cancel();
+
+TimeSpan? CalculateRemainingTime(string birthDateStr)
+{
+    if (!DateTime.TryParseExact(birthDateStr, "dd.MM.yyyy",
+        System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.None,
+        out DateTime birthDate))
+    {
+        Console.WriteLine("Неверный формат даты");
+        return null;
+    }
+
+    DateTime deathDate = birthDate
+        .AddYears(70)
+        .AddDays(0.06 * 365.2425);
+
+    TimeSpan remaining = deathDate - DateTime.Now;
+
+    return remaining;
+}
+
+string FormatTimeSpan(TimeSpan span)
+{
+    const double daysPerYear = 365.2425;
+    const double daysPerMonth = 30.4368;
+
+    int years = (int)(span.TotalDays / daysPerYear);
+    int months = (int)((span.TotalDays % daysPerYear) / daysPerMonth);
+    int days = (int)(span.TotalDays % daysPerMonth);
+    int hours = span.Hours;
+    int minutes = span.Minutes;
+
+    return $"""
+        {years} лет,
+        {months} месяцев,
+        {days} дней,
+        {hours} часов,
+        {minutes} минут
+        """;
+}
+
+bool IsValidDate(string input)
+{
+    string pattern = @"^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.(19|20)\d{2}$";
+    return Regex.IsMatch(input, pattern);
+}
